@@ -1,0 +1,2 @@
+#Always show the disk status notify balloon, even when no tampering detected
+ALWAYS_NOTIFY=1

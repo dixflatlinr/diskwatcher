@@ -1,0 +1,7 @@
+#Note: apt = needed system packages, apt_pyext = needed python packages, if managed externally
+
+#apt: sqlite3
+#apt_pyext: python3-psutil python3-dbus
+
+dbus_python
+psutil

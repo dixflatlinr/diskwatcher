@@ -1,0 +1,18 @@
+[Unit]
+Description=Checks continuity of SMART Power Cycle values for installed drives
+Requires=user@%UID%.service
+After=user@%UID%.service diskwatcher_fetcher.service
+
+
+[Service]
+User=%NAME%
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%UID%/bus
+Environment=DISPLAY=:0
+EnvironmentFile=/etc/default/diskwatcher
+Type=oneshot
+ExecStart=/opt/diskwatcher/diskwatcher --always_notify=${ALWAYS_NOTIFY}
+TimeoutStartSec=0
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target

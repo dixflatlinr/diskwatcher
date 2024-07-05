@@ -1,0 +1,16 @@
+[Unit]
+Description=Record SMART power cycle values
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+After=multi-user.target
+# local-fs.target
+#Requires=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/diskwatcher/diskwatcher_fetcher
+TimeoutStartSec=0
+RemainAfterExit=no
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+
+sys.path.append('/opt/diskwatcher')
+
+from main.diskwatcher import DiskWatcher
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Diskwatcher")
+    #these need more privs!
+    #parser.add_argument("--ignore", help="Specify disk serial number to ignore", type=str, default="")
+    #parser.add_argument("--remove", help="Remove serial from ignore list", type=str, default="")
+    parser.add_argument('--list', action='store_true', default=False, help='List disk drives')
+    parser.add_argument('--always_notify', type=int, default=0, help='Always show disk power cycle count')
+
+    args = parser.parse_args()
+
+    dw = DiskWatcher({'always_notify': args.always_notify})
+
+    if args.list:
+        dw.printDiskDevices()
+        exit(0)
+
+    dw.checkContinuity()

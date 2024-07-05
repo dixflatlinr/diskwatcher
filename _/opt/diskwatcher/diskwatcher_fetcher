@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import os, sys
+
+sys.path.append('/opt/diskwatcher')
+
+from main.diskwatcher import DiskWatcher
+
+if os.geteuid() != 0:
+    print('Must be run as root!')
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    dbc = DiskWatcher().runDataFetch()
