@@ -1,8 +1,7 @@
 [Unit]
 Description=Checks continuity of SMART Power Cycle values for installed drives
-Requires=user@%UID%.service
+Requires=user@%UID%.service diskwatcher_fetcher.service
 After=user@%UID%.service diskwatcher_fetcher.service
-
 
 [Service]
 User=%NAME%

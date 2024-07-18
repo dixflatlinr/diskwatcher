@@ -1,9 +1,6 @@
 [Unit]
 Description=Record SMART power cycle values
-After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-After=multi-user.target
-# local-fs.target
-#Requires=local-fs.target
+After=systemd-suspend.service hybrid-sleep.target systemd-hibernate.service systemd-suspend-then-hibernate.service systemd-resume.service
 
 [Service]
 Type=oneshot
@@ -12,5 +9,4 @@ TimeoutStartSec=0
 RemainAfterExit=no
 
 [Install]
-WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
-WantedBy=multi-user.target
+WantedBy=multi-user.target hybrid-sleep.target suspend.target hibernate.target suspend-then-hibernate.target resume.target

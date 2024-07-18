@@ -293,14 +293,14 @@ class DiskWatcher:
 
             if prev == actual or prev == actual-1:
                 msg = f'OK {msg_base}'
-                self.logger.info(msg)
+                self.logger.info(msg.replace('\n','-'))
                 if self.options['always_notify']:
                     self.sendNotify(msg, 'normal')
                 continue
 
             if prev != actual-1:
                 msg = f'Device tampering! {msg_base}'
-                self.logger.critical(msg)
+                self.logger.critical(msg.replace('\n','-'))
                 self.sendNotify(msg, 'critical')
 
         sys.exit(0)
