@@ -209,10 +209,14 @@ def _copy_files(fromdir:str='_/'):
 
         print(f'{file} => {path_dest}/')
         _create_dir(path_dest)
+        os.chmod(path_dest, 0o755)
+
         _copy_file(file, os.path.join(path_dest, filename))
 
         if filename_dest in file_chmod:
             os.chmod(filename_dest, file_chmod[filename_dest])
+        else:
+            os.chmod(filename_dest, 0o444)
 
     print('')
 

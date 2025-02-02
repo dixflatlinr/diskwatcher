@@ -2,6 +2,7 @@ import json, sys, os, re
 import subprocess
 from datetime import datetime
 from .dbevent import dbEvent
+from .smart import Smart
 import psutil
 import dbus
 
@@ -68,7 +69,11 @@ class DiskWatcher:
         bootDate = self.getBootDate()
 
         for disk in self.getDiskDevices():
-            smartData = self.getSMART(disk['KNAME'])
+            try:
+                smartData = Smart(disk['KNAME']).processSMART()
+            except Exception as e:
+                self.throwError(f'{disk["KNAME"]} failed to process SMART: {e}')
+
             if not smartData or 'power_cycle' not in smartData:
                 continue
 
@@ -134,103 +139,6 @@ class DiskWatcher:
                 print(f"{key}: {disk[key]}")
 
             print('')
-
-    def is_bit_set(self, byte, bit_position:int):
-        """
-        # Example usage:
-        # bitpos:   76543210
-        byte =    0b10001001
-        bit_position = 7
-
-        is_set = is_bit_set(byte, bit_position)
-        print(f"Is bit {bit_position} set in byte {bin(byte)}? {'Yes' if is_set else 'No'}")
-        """
-        if bit_position < 0 or bit_position > 7:
-            raise ValueError("Bit position must be in the range 0-7")
-        mask = 1 << bit_position
-
-        return (byte & mask) != 0
-
-    def getSMART(self, dev):
-        if not re.match('^[a-z0-9-_]+$',dev):
-            self.throwError(f'Device name {dev} contains strange characters!')
-
-        # note: sleepy drive statuses not checked... -n
-        result = subprocess.run(f"{self.options['binaries']['smartctl']} -a -j /dev/{dev}", shell=True, stdout=subprocess.PIPE)
-        smart = json.loads(result.stdout)
-
-        out = self.processSMART(smart)
-        out['status'] = self.smartCtlExitCodeParser(result.returncode)
-
-        #TODO: remove debug
-        with open(f'{self.options["dir_data"]}debug_smart.txt', 'a') as file:
-            file.write(f"###################{dev}:")
-            json.dump(out, file)
-            file.write(result.stdout.decode("utf-8"))
-            file.write("\n")
-
-        #Enddebug
-
-        return out
-
-    def smartCtlExitCodeParser(self, exitcode:int):
-        errstr = \
-            {
-                0: 'smartctl parameter error',
-                1: 'device cannot be opened',
-                2: 'smart/ata cmd fail or checksum error',
-                3: 'disk failing',
-                4: 'prefail attributes below threshold',
-                5: 'usage/prefail attributes were below threshold in the past',
-                6: 'error log not empty',
-                7: 'self test log has errors',
-            }
-        # smartctl uses a bitmask in the return code to communicate if any errors occured with the device
-        if exitcode & 0xFF == 0:
-            return 'OK'
-
-        out = []
-
-        if exitcode & 0xFF != 0:
-            for bit in range(0,7+1):
-                if self.is_bit_set(exitcode, bit):
-                    out.append(errstr[bit])
-
-        return ", ".join(out)
-
-    def processSMART(self, data)->dict:
-        out = {}
-        logical_sector_size = 512 #TODO: need to parse value from smartctl output if it varies
-
-    ### NVME
-        nvme_key = 'nvme_smart_health_information_log'
-        nvme_keys = ['host_reads','host_writes','power_cycles','power_on_hours']
-
-        if nvme_key in data:
-            out['host_read_bytes'] = (data[nvme_key]['host_reads'] * logical_sector_size)
-            out['host_write_bytes'] = (data[nvme_key]['host_writes'] * logical_sector_size)
-            out['power_cycle'] = data[nvme_key]['power_cycles']
-            out['power_on_hours'] = data[nvme_key]['power_on_hours']
-
-            return out
-
-    ### SATA
-        if "ata_smart_attributes" not in data:
-            return {}
-
-        table = data["ata_smart_attributes"]["table"]
-
-        sata = {}
-        for item in table:
-            name = item.pop("name")
-            sata[name] = item
-
-        out['host_read_bytes'] = 0
-        out['host_write_bytes'] = (sata["Total_LBAs_Written"]['raw']['value'] * logical_sector_size) # / (1000**4)
-        out['power_cycle'] = sata["Power_Cycle_Count"]['raw']['value']
-        out['power_on_hours'] = sata["Power_On_Hours"]['raw']['value']
-
-        return out
 
     def throwError(self, msg, priority = logging.ERROR, dieCode = 1):
         self.logger.log(priority, msg)
