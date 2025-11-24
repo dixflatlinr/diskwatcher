@@ -1,6 +1,8 @@
 import os, re, subprocess, json
 
 class Smart:
+    """Handles fetching and parsing SMART data via smartctl"""
+
     device_name = ''
     data:dict = None
 
@@ -11,76 +13,96 @@ class Smart:
         }
     }
 
-    def __init__(self, device_name):
+    def __init__(self, binary_path: str = '/usr/sbin/smartctl'):
         self.options = self.DEFAULT_OPTIONS.copy()
-        self.device_name = device_name
 
         for name, binary in self.options['binaries'].items():
             if not os.path.exists(binary):
-                raise Exception(f'{name} not found under {binary}')
-
-        self.data = self.getSMART(device_name)
+                raise FileNotFoundError(f'{name} not found under {binary}')
 
         pass
 
-    def getSMART(self, device_name:str) -> dict:
-        if not re.match('^[a-z0-9-_]+$', device_name):
-            raise Exception(f'Device name {device_name} contains strange characters!')
-
-        # note: sleepy drive statuses not checked... -n
-        result = subprocess.run(f"{self.options['binaries']['smartctl']} -a -j /dev/{device_name}", shell=True,
-                                stdout=subprocess.PIPE)
-        smart = json.loads(result.stdout)
-        smart['__exitcode'] = self.parseSmartCtlExitCode(result.returncode)
-
-        return smart
-
-    def processSMART(self) -> dict:
+    def process_smart(self, device_name:str) -> dict:
         out = {}
 
-        if not self.data.get('device'):
-            raise Exception('No device data present!')
+        data = self._get_smart(device_name)
+
+        if not data.get('device'):
+            raise RuntimeError('No device data present!')
 
         # device agnostic values by smartctl
-        out['power_on_hours'] = self.data['power_on_time']['hours']
-        out['power_cycle'] = self.data['power_cycle_count']
-        #out['logical_block_size'] = self.data['logical_block_size']
-        logical_block_size = self.data['logical_block_size']
+        out['power_on_hours'] = data['power_on_time']['hours']
+        out['power_cycle'] = data['power_cycle_count']
+        #out['logical_block_size'] = data['logical_block_size']
+        logical_block_size = data['logical_block_size']
 
-        # specs: https://nvmexpress.org/specifications/
-        # NVM-Express-Base-Specification-Revision-2.1-2024.08.05-Ratified.pdf
-        #
-        match self.data['device']['type']:
+        # populate bytes read and written values
+        match data['device']['type']:
             case 'nvme':
-                nvme_key = 'nvme_smart_health_information_log'
-
-                """
-                Contains the number of 512 byte data units the host has read from the
-                controller as part of processing a SMART Data Units Read Command; this value does not include
-                metadata. This value is reported in thousands (i.e., a value of 1 corresponds to 1,000 units of 512 bytes
-                read)...
-                """
-                out['host_read_bytes'] = (self.data[nvme_key]['data_units_read'] * logical_block_size * 1000)
-                out['host_write_bytes'] = (self.data[nvme_key]['data_units_written'] * logical_block_size * 1000)
+                self._process_nvme(data, out, logical_block_size)
 
             case 'ata' | 'sat' | 'sata':
-                table = self.data["ata_smart_attributes"]["table"]
-
-                sata = {}
-                for item in table:
-                    sata[item.pop("name")] = item
-
-                ret = self.calculateReadsWrites(sata, logical_block_size)
-
-                out['host_read_bytes'] = ret['read']
-                out['host_write_bytes'] = ret['write']
+                self._process_ata(data, out, logical_block_size)
 
             case _:
-                raise Exception(f'Device {self.device_name} is not supported!')
+                raise RuntimeError(f'Device {device_name} is not supported!')
 
         return out
 
-    def calculateReadsWrites(self, raw_data, block_size:int = 512) -> dict:
+    # specs: https://nvmexpress.org/specifications/
+    # NVM-Express-Base-Specification-Revision-2.1-2024.08.05-Ratified.pdf
+    #
+    def _process_nvme(self, data: dict, out:dict, block_size:int):
+        nvme_key = 'nvme_smart_health_information_log'
+
+        """
+        Contains the number of 512 byte data units the host has read from the
+        controller as part of processing a SMART Data Units Read Command; this value does not include
+        metadata. This value is reported in thousands (i.e., a value of 1 corresponds to 1,000 units of 512 bytes
+        read)...
+        """
+        out['host_read_bytes'] = (data[nvme_key]['data_units_read'] * block_size * 1000)
+        out['host_write_bytes'] = (data[nvme_key]['data_units_written'] * block_size * 1000)
+
+    def _process_ata(self, data: dict, out:dict, block_size:int):
+        table = data["ata_smart_attributes"]["table"]
+
+        sata = {}
+        for item in table:
+            sata[item.pop("name")] = item
+
+        ret = self._calculate_reads_writes(sata, block_size)
+
+        out['host_read_bytes'] = ret['read']
+        out['host_write_bytes'] = ret['write']
+
+    def _get_smart(self, device_name:str) -> dict:
+        """Fetches JSON from smartctl output"""
+
+        #self.data = self.get_smart(device_name)
+
+        if not re.match('^[a-z0-9-_]+$', device_name):
+            raise RuntimeError(f'Device name {device_name} contains strange characters!')
+
+        # TODO: res why this outputs extra data?!
+        #cmd = [self.options['binaries']['smartctl'], '-a','-j',f'/dev/{device_name}']
+
+        # -a all info, -j json output
+        cmd = f"{self.options['binaries']['smartctl']} -a -j /dev/{device_name}"
+
+        # note: sleepy drive statuses not checked... -n
+        # smartctl has funny exit codes that reflect disk statuses, hence no check=True
+        result = subprocess.run(cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE)
+
+        smart = json.loads(result.stdout)
+        smart['__exitcode'] = self._parse_exit_code(result.returncode)
+
+        return smart
+
+
+    def _calculate_reads_writes(self, raw_data, block_size:int = 512) -> dict:
         """
         Returns the read/written bytes
 
@@ -138,7 +160,8 @@ class Smart:
 
         return out
 
-    def parseSmartCtlExitCode(self, exitcode: int):
+    def _parse_exit_code(self, exitcode: int):
+        """Parses smartctl exit codes"""
         errstr = \
             {
                 0: 'smartctl parameter error',
@@ -159,12 +182,12 @@ class Smart:
 
         if exitcode & 0xFF != 0:
             for bit in range(0, 7 + 1):
-                if self.is_bit_set(exitcode, bit):
+                if self._is_bit_set(exitcode, bit):
                     out.append(errstr[bit])
 
         return ", ".join(out)
 
-    def is_bit_set(self, byte, bit_position:int):
+    def _is_bit_set(self, byte, bit_position:int):
         """
         # Example usage:
         # bitpos:   76543210

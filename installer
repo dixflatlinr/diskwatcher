@@ -20,7 +20,6 @@ service_user_name = 'diskwatcher'
 file_chmod = \
 {
 '/opt/diskwatcher/diskwatcher': 0o555,
-'/opt/diskwatcher/diskwatcher_fetcher': 0o500
 }
 
 def main():
