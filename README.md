@@ -2,8 +2,8 @@
 Monitors the SMART values of your hard drives for signs of tampering (removal without your knowledge).  Works by checking the continuity of the SMART Power Cycle values. 
 
 ## Installation - Automatic
-Download the whole repo.
-```chmod +x installer; ./installer``` to run the installer on APT based systems. 
+Download or clone the  repo.
+```chmod +x installer; ./installer``` to run the installer on APT based systems. Tested on Debian 11/12. 
 
 ## Configuration
 The app related configuration can be found under ```/etc/default/diskwatcher```.
@@ -39,7 +39,6 @@ systemctl enable diskwatcher_fetcher
 systemctl start diskwatcher_fetcher
 
 chmod 555 /opt/diskwatcher/diskwatcher
-chmod 500 /opt/diskwatcher/diskwatcher_fetcher
 
 # enjoy!
 ```

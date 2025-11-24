@@ -4,7 +4,7 @@ After=systemd-suspend.service hybrid-sleep.target systemd-hibernate.service syst
 
 [Service]
 Type=oneshot
-ExecStart=/opt/diskwatcher/diskwatcher_fetcher
+ExecStart=/opt/diskwatcher/diskwatcher fetch
 TimeoutStartSec=0
 RemainAfterExit=no
 

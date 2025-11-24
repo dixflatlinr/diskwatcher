@@ -9,7 +9,7 @@ Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%UID%/bus
 Environment=DISPLAY=:0
 EnvironmentFile=/etc/default/diskwatcher
 Type=oneshot
-ExecStart=/opt/diskwatcher/diskwatcher --always_notify=${ALWAYS_NOTIFY}
+ExecStart=/opt/diskwatcher/diskwatcher watch --always_notify=${ALWAYS_NOTIFY}
 TimeoutStartSec=0
 RemainAfterExit=no
 
