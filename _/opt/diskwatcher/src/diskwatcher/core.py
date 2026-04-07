@@ -27,10 +27,11 @@ class DiskWatcherApp:
         boot_date = self.sys.get_boot_date()
 
         for disk in self.sys.get_disk_devices():
+            smart_data = None
             try:
                 smart_data = Smart().process_smart(disk['KNAME'])
             except Exception as e:
-                self._throw_error(f'{disk["KNAME"]} failed to process SMART: {e}')
+                self.logger.info(f'{disk["KNAME"]} failed to process SMART: {e}')
 
             if not smart_data or 'power_cycle' not in smart_data:
                 continue
